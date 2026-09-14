@@ -1,0 +1,1072 @@
+% mo_hinh_sat_samsp_v2.tex
+% Biên dịch: latexmk -lualatex -interaction=nonstopmode mo_hinh_sat_samsp_v2.tex
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[a4paper,margin=25mm]{geometry}
+\usepackage{fontspec}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{unicode-math}
+\usepackage{booktabs,tabularx,longtable,array}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage[nameinlink,noabbrev]{cleveref}
+
+\setmainfont{TeX Gyre Pagella}
+\setmathfont{TeX Gyre Pagella Math}
+
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black,
+  pdftitle={Q-SAT: Mo hinh SAT compact cho SAMSP}}
+
+\newtheorem{theorem}{Dinh ly}[section]
+\newtheorem{lemma}[theorem]{Bo de}
+\newtheorem{proposition}[theorem]{Menh de}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Nhan xet}
+
+\crefname{section}{muc}{cac muc}
+\crefname{table}{bang}{cac bang}
+\crefname{lemma}{bo de}{cac bo de}
+\crefname{theorem}{dinh ly}{cac dinh ly}
+
+\newcommand{\AMO}{\operatorname{AMO}}
+\newcommand{\ES}{\operatorname{ES}}
+\newcommand{\LS}{\operatorname{LS}}
+\newcommand{\EC}{\operatorname{EC}}
+\newcommand{\LC}{\operatorname{LC}}
+\newcommand{\STW}{\operatorname{STW}}
+\newcommand{\RTW}{\operatorname{RTW}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{Z}{>{\centering\arraybackslash}X}
+
+\setlist[itemize]{leftmargin=1.4em,itemsep=0.2em,topsep=0.3em}
+\setlist[enumerate]{leftmargin=1.6em,itemsep=0.2em,topsep=0.3em}
+
+\begin{document}
+
+\title{\textbf{Q-SAT: Mô hình SAT compact cho\\
+    Sample Analysis Machine Scheduling Problem}}
+\author{Tuyên Văn Kiều}
+\date{Tháng 9 năm 2026 \quad\emph{(bản kỹ thuật nội bộ)}}
+\maketitle
+
+\begin{abstract}
+Bài toán SAMSP kết hợp generalized precedence (kể cả maximum lag), tài
+nguyên tái tạo unary và vùng lưu trữ có sức chứa hữu hạn.
+Chúng tôi đề xuất Q-SAT: mô hình SAT time-indexed dùng duy nhất
+\emph{order variables} $q_{i,t} \equiv [S_i \le t]$ để biểu diễn đồng thời
+start time, precedence và storage, loại bỏ start literals và register variables
+của baseline hiện tại.
+Q-SAT được chứng minh tương đương nghiệm với các mô hình CP, SMT và MILP
+của bài báo gốc.
+Ngoài ra, bài viết làm rõ điều kiện áp dụng PB(AMO) cho generalized lags
+và phân biệt rõ ladder encoding với SCAMO.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+%=============================================================================
+\section{Định nghĩa SAMSP}
+\label{sec:samsp}
+%=============================================================================
+
+\subsection{Dữ liệu bài toán}
+
+Một instance SAMSP được cho bởi bộ
+$\mathcal{T} = (\mathcal{V}, d, \mathcal{E}, \mathcal{R}, B, b, \mathcal{C}, P, c)$,
+trong đó:
+
+\begin{itemize}
+  \item $\mathcal{V} = \{A_0, A_1, \ldots, A_n, A_{n+1}\}$: tập hoạt động;
+    $A_0, A_{n+1}$ là dummy start/end với $d_0 = d_{n+1} = 0$.
+  \item $d_i \in \mathbb{N}$: thời lượng của $A_i$.
+  \item $(A_i, A_j, \ell_{ij}) \in \mathcal{E}$: generalized precedence
+    $S_j - S_i \ge \ell_{ij}$, với $\ell_{ij}$ có thể âm.
+    Maximum lag $S_j - S_i \le L$ được mã hóa bằng cạnh ngược
+    $S_i - S_j \ge -L$.
+  \item $\mathcal{R}$: tập tài nguyên tái tạo; $B_r$: sức chứa;
+    $b_{ir} \ge 0$: nhu cầu của $A_i$ trong suốt thời gian chạy.
+  \item $\mathcal{C}$: tập vùng lưu trữ; $P_s$: sức chứa.
+  \item $c_{is} \in \mathbb{Z}$: thay đổi mức storage ---
+    $c_{is} > 0$ chiếm chỗ ngay khi $A_i$ bắt đầu;
+    $c_{is} < 0$ trả $|c_{is}|$ chỗ ngay sau khi $A_i$ hoàn tất.
+\end{itemize}
+
+Mức chiếm storage $s$ tại biên thời gian $t$:
+\begin{equation}
+  O_s(t) =
+  \sum_{i:\,c_{is}>0} c_{is}\,[S_i \le t]
+  + \sum_{i:\,c_{is}<0} c_{is}\,[S_i + d_i \le t].
+  \label{eq:storage-level}
+\end{equation}
+
+\subsection{Bài toán quyết định}
+
+Với cận makespan $T$, tìm vector start time $S$ thỏa:
+\begin{align}
+  S_0 &= 0, & S_{n+1} &\le T, \label{eq:dummy}\\
+  S_j - S_i &\ge \ell_{ij} && \forall (i,j,\ell_{ij}) \in \mathcal{E},
+    \label{eq:prec}\\
+  \sum_{i:\,t \in [S_i,\,S_i+d_i-1]} b_{ir} &\le B_r
+    && \forall r,\; t, \label{eq:renewable}\\
+  0 \le O_s(t) &\le P_s && \forall s,\; t. \label{eq:storage}
+\end{align}
+
+\begin{remark}
+Khoảng chiếm storage không trùng với duration của một activity:
+hai đầu khoảng do hai activities khác nhau quyết định, với độ dài phụ thuộc
+vào nhiều lags. Gộp khoảng chiếm thành một activity dài là sai về semantics.
+\end{remark}
+
+\subsection{Ví dụ một cuvette}
+\label{sec:example}
+
+Xét sáu hoạt động (mỗi renewable resource và storage có capacity 1):
+
+\begin{table}[htbp]
+\centering
+\caption{Dữ liệu ví dụ một cuvette. $+C/-C$, $+H/-H$, $+O/-O$: chiếm/trả
+  Cold, Hot-II, Observation.}
+\label{tab:example}
+\begin{tabularx}{\textwidth}{@{}cYcp{0.20\textwidth}p{0.20\textwidth}@{}}
+\toprule
+\textbf{Act.} & \textbf{Thao tác} & $\boldsymbol{d_i}$ &
+\textbf{Renewable} & \textbf{Storage event}\\
+\midrule
+$A_1$ & Đưa cuvette vào Cold   & 2 & Shuttle     & $+C$\\
+$A_2$ & Hút mẫu vào cuvette    & 3 & Sample Arm  & ---\\
+$A_3$ & Chuyển Cold $\to$ Hot-II   & 2 & Shuttle     & $-C,\;+H$\\
+$A_4$ & Thêm thuốc thử         & 2 & Reagent Arm & ---\\
+$A_5$ & Chuyển Hot-II $\to$ Obs.   & 2 & Shuttle     & $-H,\;+O$\\
+$A_6$ & Chuyển Obs. $\to$ waste    & 2 & Shuttle     & $-O$\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Minimum lags: $S_2-S_1\ge2$, $S_3-S_2\ge3$, $S_4-S_3\ge2$,
+$S_5-S_4\ge2$, $S_6-S_5\ge6$.
+Maximum lag: $S_6-S_5\le8$, mã hóa bằng cạnh ngược $S_5-S_6\ge-8$.
+Lịch khả thi: $(S_1,\ldots,S_6,S_7) = (0,2,5,7,9,15,17)$, makespan $= 17$.
+
+%=============================================================================
+\section{Các mô hình gốc}
+\label{sec:original}
+%=============================================================================
+
+Bofill et al.~\cite{bofill2022samsp} xây dựng ba mô hình exact: CP, SMT và MILP.
+
+\begin{table}[htbp]
+\centering
+\caption{So sánh ba mô hình của bài báo gốc.}
+\label{tab:original}
+\begin{tabularx}{\textwidth}{@{}p{0.10\textwidth}p{0.25\textwidth}Y Y@{}}
+\toprule
+\textbf{Mô hình} & \textbf{Biến chính} & \textbf{Capacity constraints} &
+\textbf{Đặc điểm}\\
+\midrule
+CP   & Interval variable $\operatorname{task}_i$ &
+  Pulse, StepAtStart, StepAtEnd &
+  Không cần horizon để tạo biến; propagation toàn cục.\\
+SMT  & $S_i \in \mathbb{Z}$; $X_{i,t}, Y_{i,t} \in \{0,1\}$ &
+  IDL cho precedence; PB/AMO cho renewable; PB cho storage &
+  Time-indexed ở $X,Y$; start time vẫn là biến nguyên.\\
+MILP & One-hot $\xi_{i,t} \in \{0,1\}$ &
+  Tổng chập start literals (renewable); tổng tích lũy (storage) &
+  Hoàn toàn time-indexed; LP relaxation cung cấp LB.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Ký hiệu dùng lại.}
+$\STW(i) = [\ES_i, \LS_i]$: start time window;
+$\RTW(i) = [\ES_i, \LC_i - 1]$: run time window.
+Mô hình MILP time-indexed (dùng làm baseline):
+\begin{alignat}{2}
+  \min\quad & \textstyle\sum_t t\,\xi_{n+1,t}, \tag{ILP-OBJ}\\
+  & \textstyle\sum_{t \in \STW(i)} \xi_{i,t} = 1 && \forall i,
+    \tag{ILP-EO}\label{ILP-EO}\\
+  & \textstyle\sum_t t\,\xi_{j,t} - \sum_t t\,\xi_{i,t} \ge \ell^\star_{ij}
+    && \forall (i,j) \in \mathcal{E}^\star, \tag{ILP-P}\\
+  & \textstyle\sum_i b_{ir} R_{i,t}(\xi) \le B_r
+    && \forall r,\;t, \tag{ILP-R}\\
+  & \textstyle 0 \le \sum_{i:\,c_{is}>0} c_{is} Q_{i,t}(\xi)
+    + \sum_{i:\,c_{is}<0} c_{is} Q_{i,t-d_i}(\xi) \le P_s
+    && \forall s,\;t, \tag{ILP-C}
+\end{alignat}
+với $Q_{i,t} = \sum_{\tau \le t, \tau \in \STW(i)} \xi_{i,\tau}$ và
+$R_{i,t} = \sum_{\tau=\max(\ES_i,t-d_i+1)}^{\min(t,\LS_i)} \xi_{i,\tau}$.
+
+%=============================================================================
+\section{Preprocessing}
+\label{sec:preprocessing}
+%=============================================================================
+
+\subsection{Closure max-plus}
+
+$\ell^\star_{ij}$ là lag kéo theo mạnh nhất từ tất cả đường đi $i \leadsto j$:
+\[
+  \ell^\star_{ij} = \max_{\pi:\,i\leadsto j} \sum_{(a,b)\in\pi} \ell_{ab}.
+\]
+Tính bằng Floyd--Warshall với phép cập nhật
+$L_{ij} \leftarrow \max\{L_{ij},\, L_{ik} + L_{kj}\}$ (\emph{max-plus},
+không phải shortest path).
+Nếu $L_{ii} > 0$ sau closure, instance UNSAT (positive cycle).
+
+\begin{remark}
+\texttt{networkx.floyd\_warshall} tính shortest path.
+Để dùng đúng: đặt $w_{ij} = -\ell_{ij}$ trước khi gọi, rồi đổi dấu kết quả;
+hoặc cài max-plus trực tiếp.
+\end{remark}
+
+\subsection{Time windows}
+
+Cận dưới: $LB_0 = \ell^\star_{0,n+1}$.
+Cận trên ban đầu: $UB_0 = \sum_i \gamma_i$ với $\gamma_i = \max(d_i, \max_{(i,j)}\ell_{ij})$.
+$UB_0$ thường lỏng; nên thay bằng incumbent từ greedy schedule.
+
+Với $\overline{U} = \min(UB_0, UB_\mathrm{inc})$:
+\begin{equation}
+  \ES_i = \ell^\star_{0i},\quad \LS_i = \overline{U} - \ell^\star_{i,n+1},\quad
+  \EC_i = \ES_i + d_i,\quad \LC_i = \LS_i + d_i.
+  \label{eq:windows}
+\end{equation}
+Nếu $\ES_i > \LS_i$, instance UNSAT không cần gọi solver.
+
+\subsection{Symmetry breaking}
+\label{sec:sb}
+
+Với activities exchangeable (cùng test type, mọi dữ liệu đồng nhất):
+
+\begin{description}[style=nextline]
+  \item[SB-R (renewable).] Với mỗi cặp copy liên tiếp $(m, m+1)$:
+  \[
+    (A_{k,m,a},\; A_{k,m+1,a},\; o_a),\quad
+    o_a = \begin{cases} d_a & \text{nếu } \sum_r b_{ar} > 0,\\
+      0 & \text{ngược lại.}\end{cases}
+  \]
+
+  \item[SB-C (storage).] Đặt $h = \lfloor P_s / c_{as} \rfloor$ và $pt$ là
+  thời gian tối thiểu từ start của $a$ đến completion của activity trả một vị
+  trí $s$ (closure cục bộ test type $k$):
+  \[
+    (A_{k,m,a},\; A_{k,m+h,a},\; pt),\quad m = 1, \ldots, N_k - h.
+  \]
+\end{description}
+
+Symmetry edges phải được thêm \emph{trước} closure toàn cục để ảnh hưởng
+của chúng lan qua toàn graph.
+
+\paragraph{Pipeline.}
+\begin{enumerate}
+  \item Closure cục bộ (từng test type) $\to$ sinh SB-R, SB-C.
+  \item Closure toàn cục trên $\mathcal{E}_g$ đã bổ sung; phát hiện positive cycle.
+  \item Tính $LB_0$; chạy greedy để lấy $\overline{U}$; tính windows \eqref{eq:windows}.
+  \item (Tùy chọn) Energetic strengthening: thêm cạnh, lặp closure đến fixed point.
+  \item Thay literal ngoài cửa sổ bằng hằng; chọn chính sách materialization.
+\end{enumerate}
+
+%=============================================================================
+\section{Mô hình Q-SAT}
+\label{sec:qsat}
+%=============================================================================
+
+\subsection{Order variables}
+
+\begin{equation}
+  q_{i,t} = 1 \iff S_i \le t, \qquad t \in [\ES_i, \LS_i - 1].
+  \label{eq:order-var}
+\end{equation}
+Biên cố định (hằng, không phải biến SAT):
+\begin{equation}
+  q_{i,t} = \begin{cases} 0 & t < \ES_i,\\ 1 & t \ge \LS_i. \end{cases}
+  \label{eq:boundary}
+\end{equation}
+
+\begin{lemma}[Ánh xạ 1-1]
+\label{lem:transition}
+Mọi gán thỏa \eqref{eq:boundary} và các mệnh đề đơn điệu
+\begin{equation}
+  \neg q_{i,t-1} \lor q_{i,t}, \qquad t = \ES_i + 1, \ldots, \LS_i - 1,
+  \label{eq:monotone}
+\end{equation}
+xác định duy nhất $S_i = \min\{t : q_{i,t} = 1\}$, và ngược lại.
+\end{lemma}
+
+\begin{proof}
+Chuỗi đơn điệu bị chặn bởi 0 ở trái và 1 ở phải, nên có đúng một chuyển
+mức $0 \to 1$. Vị trí đó chính là $S_i$.
+\end{proof}
+
+Start literal dẫn xuất (không cần tạo biến SAT riêng):
+\[
+  \sigma_{i,t} \equiv q_{i,t} \land \neg q_{i,t-1} \iff S_i = t.
+\]
+
+\subsection{Precedence}
+
+Với cạnh $(i, j, \ell) \in \mathcal{E}^\star$:
+\begin{equation}
+  \neg q_{j,t} \lor q_{i,t-\ell}, \qquad t \in [\ES_j, \LS_j].
+  \label{eq:prec-clause}
+\end{equation}
+
+\begin{lemma}
+\label{lem:prec}
+Các mệnh đề \eqref{eq:prec-clause} tương đương $S_j - S_i \ge \ell$,
+với $\ell$ tùy ý (dương hoặc âm).
+\end{lemma}
+
+\begin{proof}
+Tại $t = S_j$: $q_{j,t}=1$ buộc $q_{i,S_j-\ell}=1$, tức $S_i \le S_j - \ell$.
+Chiều ngược: nếu $S_i \le S_j - \ell$ và $q_{j,t}=1$ thì $t \ge S_j$,
+suy ra $t-\ell \ge S_i$ và $q_{i,t-\ell}=1$.
+\end{proof}
+
+\subsection{Run variables và channeling}
+
+\begin{equation}
+  u_{i,t} = 1 \iff t \in [S_i,\; S_i + d_i - 1], \qquad t \in \RTW(i).
+  \label{eq:run-var}
+\end{equation}
+
+Channeling ($u_{i,t} \iff q_{i,t} \land \neg q_{i,t-d_i}$) qua ba clause:
+\begin{align}
+  \neg u_{i,t} \lor q_{i,t}, \tag{17a}\label{eq:ch-a}\\
+  \neg u_{i,t} \lor \neg q_{i,t-d_i}, \tag{17b}\label{eq:ch-b}\\
+  \neg q_{i,t} \lor q_{i,t-d_i} \lor u_{i,t}. \tag{17c}\label{eq:ch-c}
+\end{align}
+
+\subsection{Tài nguyên tái tạo}
+
+\begin{equation}
+  \sum_{i:\,t \in \RTW(i)} b_{ir}\, u_{i,t} \le B_r,
+  \qquad \forall r,\; t.
+  \label{eq:renewable-pb}
+\end{equation}
+Mã hóa sang CNF bằng BDD~\cite{abio2012bdd}, AMO (khi $B_r=1$),
+hoặc PB(AMO) (\cref{sec:pbamo}).
+
+\subsection{Storage}
+
+Đặt $I_s^+ = \{i : c_{is} > 0\}$, $I_s^- = \{i : c_{is} < 0\}$,
+$w_{is} = -c_{is} > 0$.
+Từ \eqref{eq:storage-level} và \eqref{eq:order-var}:
+\begin{equation}
+  O_s(t) = \sum_{i \in I_s^+} c_{is}\, q_{i,t}
+          - \sum_{i \in I_s^-} w_{is}\, q_{i,t-d_i}.
+  \label{eq:storage-q}
+\end{equation}
+Quy ước biên \eqref{eq:boundary} hấp thụ tự động phần level đã cố định
+của mô hình SMT gốc.
+
+Cận trên $O_s(t) \le P_s$ (sau khi chuyển về trọng số dương):
+\begin{equation}
+  \sum_{i \in I_s^+} c_{is}\, q_{i,t}
+  + \sum_{i \in I_s^-} w_{is}\, \neg q_{i,t-d_i}
+  \le P_s + \textstyle\sum_{i \in I_s^-} w_{is}.
+  \label{eq:storage-ub}
+\end{equation}
+
+Cận dưới $O_s(t) \ge 0$:
+\begin{equation}
+  \sum_{i \in I_s^-} w_{is}\, q_{i,t-d_i}
+  + \sum_{i \in I_s^+} c_{is}\, \neg q_{i,t}
+  \le \textstyle\sum_{i \in I_s^+} c_{is}.
+  \label{eq:storage-lb}
+\end{equation}
+
+\paragraph{Ví dụ (hai cuvettes, $P_s = 1$).}
+Xét hai cuvettes $p_1, p_2$ chiếm Cold ($c=+1$) và $v_1, v_2$ trả Cold
+($c=-1$, $d_v=2$). Tại biên $t$:
+\[
+  O_C(t) = q_{p_1,t} + q_{p_2,t} - q_{v_1,t-2} - q_{v_2,t-2}.
+\]
+Cận trên \eqref{eq:storage-ub}:
+\[
+  q_{p_1,t} + q_{p_2,t} + \neg q_{v_1,t-2} + \neg q_{v_2,t-2} \le 1 + 2 = 3.
+\]
+Vi phạm xảy ra khi cả hai cuvettes đã vào Cold mà chưa cuvette nào được trả:
+$q_{p_1,t}=q_{p_2,t}=1$, $q_{v_1,t-2}=q_{v_2,t-2}=0$, cho vế trái $= 4 > 3$.
+
+\subsection{Makespan và giải incremental}
+
+Assumption $q_{n+1,T}$ truy vấn $S_{n+1} \le T$.
+Chiến lược tối ưu hóa:
+\begin{enumerate}
+  \item Binary search trên $[LB_0, \overline{U}]$: $O(\log(\overline{U}-LB_0))$ SAT calls.
+  \item Top-down descent từ $T^\star$: learned clauses từ SAT$(T^\star)$
+    được tái sử dụng cho SAT$(T^\star-1)$.
+\end{enumerate}
+Giải mã lịch: $S_i = \min\{t : q_{i,t} = 1\}$ (\cref{lem:transition}).
+
+\subsection{Công thức Q-SAT hoàn chỉnh}
+
+\begin{equation}
+\mathcal{F}_T =
+  \bigwedge_{i,t} \eqref{eq:monotone}
+  \;\wedge\; \bigwedge_{(i,j,\ell),\,t} \eqref{eq:prec-clause}
+  \;\wedge\; \bigwedge_{i,t} \eqref{eq:ch-a}\text{--}\eqref{eq:ch-c}
+  \;\wedge\; \bigwedge_{r,t} \operatorname{Enc}\eqref{eq:renewable-pb}
+  \;\wedge\; \bigwedge_{s,t} \operatorname{Enc}\!\left[\eqref{eq:storage-ub}\wedge\eqref{eq:storage-lb}\right]
+  \;\wedge\; q_{n+1,T}.
+\tag{Q-SAT}
+\label{eq:qsat}
+\end{equation}
+
+\begin{theorem}[Soundness và completeness]
+\label{thm:correct}
+Giả sử time windows chứa mọi lịch có makespan $\le T$ và
+$\operatorname{Enc}$ là đúng. Khi đó $\mathcal{F}_T$ satisfiable khi và chỉ
+khi SAMSP có lịch khả thi với makespan $\le T$.
+\end{theorem}
+
+\begin{proof}[Phác thảo]
+($\Leftarrow$) Đặt $q_{i,t} = [S_i \le t]$, $u_{i,t} = [S_i \le t < S_i+d_i]$.
+\Cref{lem:transition,lem:prec} và \eqref{eq:ch-a}--\eqref{eq:ch-c} đảm bảo core clauses đúng.
+\eqref{eq:storage-q} cho $O_s(t)$ đúng, nên \eqref{eq:storage-ub}--\eqref{eq:storage-lb} đúng.
+
+($\Rightarrow$) \Cref{lem:transition} giải mã duy nhất $S_i$;
+\cref{lem:prec} cho precedence; \eqref{eq:ch-a}--\eqref{eq:ch-c} cho $u_{i,t}$
+đúng trong $[S_i, S_i+d_i-1]$; PB encoder cho \eqref{eq:renewable}--\eqref{eq:storage}.
+\end{proof}
+
+%=============================================================================
+\section{Ánh xạ với SMT, MILP và CP}
+\label{sec:map}
+%=============================================================================
+
+\begin{table}[htbp]
+\centering
+\caption{Ánh xạ các biến của bốn mô hình.}
+\label{tab:map}
+\begin{tabularx}{\textwidth}{@{}p{0.30\textwidth}p{0.22\textwidth}Y@{}}
+\toprule
+\textbf{Đối tượng trong mô hình gốc} & \textbf{Q-SAT} & \textbf{Ngữ nghĩa}\\
+\midrule
+$S_i$ (SMT); $\sum_t t\xi_{i,t}$ (MILP) & $\min\{t : q_{i,t}=1\}$ & Start time.\\
+$Y_{i,t}$ (SMT); $Q_{i,t}$ (MILP); StepAtStart (CP) & $q_{i,t}$ & Đã bắt đầu $\le t$.\\
+$X_{i,t}$ (SMT); $R_{i,t}$ (MILP); Pulse (CP) & $u_{i,t}$ & Đang chạy tại $t$.\\
+$\xi_{i,t}$ (MILP) & $q_{i,t} \land \neg q_{i,t-1}$ & Bắt đầu đúng tại $t$.\\
+StepAtEnd (CP); $Y_{i,t-d_i}$ (SMT) & $q_{i,t-d_i}$ & Đã hoàn tất $\le t$.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Quan hệ chính.}
+$Y_{i,t} \equiv q_{i,t}$ và $X_{i,t} \equiv u_{i,t}$.
+Phần level cố định $PS_{s,t}$ của SMT tương đương phần hằng trong
+\eqref{eq:storage-q} do quy ước biên \eqref{eq:boundary}.
+$Q_{i,t}(\xi) \equiv q_{i,t}$; $R_{i,t}(\xi) \equiv u_{i,t}$ dưới exactly-one.
+
+\begin{theorem}[Tương đương nghiệm]
+\label{thm:equiv}
+Bốn mô hình CP, SMT, MILP và Q-SAT biểu diễn cùng tập lịch khả thi
+$\mathcal{F}_\mathrm{SAMSP}$.
+\end{theorem}
+
+\begin{proof}
+Dùng các đẳng thức trong \cref{tab:map}: từ mỗi $S \in \mathcal{F}_\mathrm{SAMSP}$,
+gán thoả đồng thời bốn mô hình; chiều ngược lại, mỗi model xác định $S$
+thỏa \eqref{eq:dummy}--\eqref{eq:storage}.
+\end{proof}
+
+\begin{remark}
+Tương đương về tập nghiệm không kéo theo tương đương về suy diễn.
+CP, SMT, MILP và SAT duyệt không gian tìm kiếm rất khác nhau.
+\end{remark}
+
+%=============================================================================
+\section{PB(AMO) từ extended precedence}
+\label{sec:pbamo}
+%=============================================================================
+
+\subsection{Non-overlap graph}
+
+\begin{equation}
+  D = (\mathcal{A}, F),\qquad (i,j) \in F \iff \ell^\star_{ij} \ge d_i.
+  \label{eq:nooverlap}
+\end{equation}
+$(i,j) \in F$ chứng minh $A_i$ hoàn tất trước khi $A_j$ bắt đầu, nên
+$u_{i,t}$ và $u_{j,t}$ không thể đồng thời bằng 1.
+
+Path cover đỉnh-rời nhau $\mathcal{P}_{r,t}$ của $D[V_{r,t}]$
+với $V_{r,t} = \{i : b_{ir} > 0,\, t \in \RTW(i)\}$ cho:
+\begin{equation}
+  \sum_{i \in P_h} u_{i,t} \le 1, \qquad h = 1, \ldots, |\mathcal{P}_{r,t}|.
+  \label{eq:amo-path}
+\end{equation}
+Kết hợp \eqref{eq:amo-path} với \eqref{eq:renewable-pb} tạo PB(AMO)~\cite{bofill2021pbamo}.
+Minimum path cover tính qua maximum bipartite matching.
+
+\begin{remark}
+Path cover trên $D$ không suy ra AMO trên storage literals $q_{i,t}$,
+vì nhiều $q_{i,t}$ trên cùng đường đi có thể đồng thời bằng 1
+(chúng biểu diễn ``đã bắt đầu'', không phải ``đang chạy'').
+\end{remark}
+
+\subsection{Selective materialization}
+
+Cấu hình selective chỉ đưa vào CNF các cạnh hữu ích cho cả precedence
+clauses lẫn non-overlap graph:
+\[
+  \mathcal{E}_\mathrm{sel} =
+  \mathcal{E}_\mathrm{raw}
+  \cup \mathcal{E}_\mathrm{SB}
+  \cup \{(i,j,\ell^\star_{ij}) : \ell^\star_{ij} \ge d_i\},
+\]
+trong khi vẫn dùng toàn bộ closure để tính windows.
+
+%=============================================================================
+\section{Ladder, Staircase và SCAMO}
+\label{sec:staircase}
+%=============================================================================
+
+Chuỗi $q_{i,\cdot}$ là \emph{ladder} đơn điệu, mã hóa bằng binary clause
+\eqref{eq:monotone}. Đây \emph{không phải} SCAMO.
+SCAMO($\Omega$, $w$) đòi mọi cửa sổ kích thước $w$ là AMO; chuỗi $q_i$
+không có cấu trúc cửa sổ đó.
+
+\begin{table}[htbp]
+\centering
+\caption{Encoding phù hợp cho từng cấu trúc trong SAMSP.}
+\label{tab:scamo}
+\begin{tabularx}{\textwidth}{@{}p{0.30\textwidth}p{0.14\textwidth}Y@{}}
+\toprule
+\textbf{Cấu trúc} & \textbf{SCAMO?} & \textbf{Encoding phù hợp}\\
+\midrule
+Chuỗi $q_{i,t}$ đơn điệu & Không (ladder) & Clause \eqref{eq:monotone}.\\
+No-overlap $\{u_{i,t}\}$ của copies cùng resource, trượt theo $t$
+  & Có & SCL~\cite{truong2025scl} hoặc order clauses \eqref{eq:prec-clause}.\\
+Resource $B_r = 1$, tập $V_{r,t}$ thay đổi theo $t$
+  & AMO tại mỗi $t$ & AMO riêng hoặc path-cover PB(AMO).\\
+Resource $B_r > 1$ & Không & PB/cardinality encoding.\\
+Storage \eqref{eq:storage-ub}--\eqref{eq:storage-lb} & Không (chung)
+  & PB encoding.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%=============================================================================
+\section{Phân tích kích thước}
+\label{sec:size}
+%=============================================================================
+
+$W_i = \LS_i - \ES_i + 1$; $U_i = W_i + d_i - 1$.
+Không tính biến phụ của PB encoders:
+
+\begin{table}[htbp]
+\centering
+\caption{Kích thước phần temporal (trước PB encoding).}
+\label{tab:size}
+\begin{tabularx}{\textwidth}{@{}Y Z Z Y@{}}
+\toprule
+\textbf{Thành phần} & \textbf{Baseline} & \textbf{Q-SAT} & \textbf{Nhận xét}\\
+\midrule
+Biến temporal/activity & $2W_i + U_i$ & $(W_i-1) + U_i$ & Tiết kiệm $W_i+1$ biến.\\
+Clause đơn điệu & $\approx 4W_i - 1$ & $\max(0, W_i-2)$ & Sau khi rút gọn hằng.\\
+Clause start-to-run & $W_i d_i$ & 0 & Thay bởi 3 channeling clauses.\\
+Clause run channel & $\approx W_i - 2$ & $\le 3U_i$ & Semantics iff.\\
+Biến storage "started" & --- / $Y_{i,t}$ (SMT) & 0 thêm & Tái sử dụng $q$.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Biến/clause PB thường lớn hơn phần temporal và phụ thuộc encoder.
+Báo cáo tách riêng $(\#V_\mathrm{core}, \#C_\mathrm{core}, \#V_\mathrm{PB}, \#C_\mathrm{PB})$.
+
+%=============================================================================
+\section{Thiết kế thực nghiệm}
+\label{sec:experiment}
+%=============================================================================
+
+\paragraph{Dữ liệu.}
+Ba tập benchmark:
+(i) SAMSP-Original: 48 instance của~\cite{bofill2022samsp} (cần liên hệ tác giả);
+(ii) RCPSP-Regression: PSPLIB $j30$/$j60$ để kiểm tra lõi Q-SAT;
+(iii) SAMSP-Synthetic: sinh có seed, thay đổi số copies, storage capacity,
+lag density, tỷ lệ maximum lag; bao gồm cả UNSAT instances.
+
+\paragraph{Ablation.}
+
+\begin{table}[htbp]
+\centering
+\caption{Ma trận ablation.}
+\label{tab:ablation}
+\begin{tabularx}{\textwidth}{@{}p{0.16\textwidth}Y Y@{}}
+\toprule
+\textbf{Nhóm} & \textbf{Cấu hình so sánh} & \textbf{Câu hỏi}\\
+\midrule
+Temporal core & Baseline / Q-SAT & Giảm biến có giảm conflicts?\\
+Precedence & Raw / +SB / bounds-only / selective / full & Nên materialize closure như thế nào?\\
+Resource PB & BDD / AMO / PB(AMO) & Encoder nào thắng theo capacity và horizon?\\
+Storage & Cả hai cận / chỉ cận trên & Khi nào bỏ cận dưới an toàn?\\
+Optimization & Rebuild / binary / binary+top-down & Learned clause reuse bù được windows lỏng?\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Chỉ số báo cáo.}
+Theo nhóm: $\#V_\mathrm{core}$, $\#C_\mathrm{core}$, $\#V_\mathrm{PB}$,
+$\#C_\mathrm{PB}$, thời gian preprocessing/encoding/solving, số SAT calls,
+decisions, conflicts, propagations, makespan, LB certified.
+Dùng geometric mean và performance profile.
+
+\paragraph{Giả thuyết chính.}
+\begin{enumerate}
+  \item Q-SAT giảm rõ rệt core variables/clauses, nhất là khi $W_i d_i$ lớn.
+  \item Full closure tốt khi windows co mạnh; thua selective khi $|\mathcal{E}^\star|$ lớn.
+  \item PB(AMO) có lợi khi path cover nhỏ; không có lợi khi lag cho phép nhiều overlap.
+  \item Bỏ cận dưới storage chỉ an toàn sau khi validator xác nhận dữ liệu well-formed.
+\end{enumerate}
+
+%=============================================================================
+\section{Hướng cải tiến tiếp theo}
+\label{sec:future}
+%=============================================================================
+
+\begin{table}[htbp]
+\centering
+\caption{Các hướng nghiên cứu sau Q-SAT.}
+\label{tab:future}
+\begin{tabularx}{\textwidth}{@{}p{0.21\textwidth}Y Y@{}}
+\toprule
+\textbf{Hướng} & \textbf{Lợi thế} & \textbf{Rủi ro}\\
+\midrule
+Energetic Reasoning LB
+  & $LB = \max(LB_\mathrm{CPM}, LB_\mathrm{ER}, LB_\mathrm{storage})$,
+    thu hẹp binary search
+  & Cần xử lý storage với hệ số âm.\\
+Primal heuristic greedy
+  & $\overline{U}$ nhỏ $\to$ windows hẹp $\to$ formula nhỏ
+  & Greedy bị chặn bởi maximum lag.\\
+MaxSAT trực tiếp (RC2/EvalMaxSAT)
+  & Không cần binary search
+  & Hiện tại yếu hơn incremental SAT trên bài toán lớn.\\
+Probing / failed literal
+  & Thu hẹp windows sau closure; miễn phí với PySAT
+  & Tốn kém nếu không có termination condition.\\
+Paired occupancy intervals
+  & Storage trở thành cumulative/cardinality đơn giản
+  & Pairing phải được suy ra chắc chắn từ dữ liệu.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%=============================================================================
+\section{Sinh dataset SAMSP}
+\label{sec:dataset}
+%=============================================================================
+
+\subsection{SAMSP cần gì thêm so với RCPSP}
+
+Một instance RCPSP gồm $n$ activities, $K$ tài nguyên, duration $d$,
+demand $b$, capacity $B$ và DAG precedence với lag end-start.
+SAMSP mở rộng ba điểm:
+
+\begin{enumerate}
+  \item \textbf{Generalized lags:} $\ell_{ij} \in \mathbb{Z}$ (âm hoặc dương);
+    maximum lag $S_j - S_i \le L$ mã hóa bằng cạnh ngược
+    $(j, i, -L)$.
+  \item \textbf{Storage zones:} $S$ storages với sức chứa $P_s$;
+    storage event $c_{is} \in \mathbb{Z}$ cho từng cặp (activity, storage).
+  \item \textbf{Storage balance:} mỗi ``cuvette'' phải thỏa
+    $\sum_i c_{is} = 0$ (chiếm bao nhiêu trả bấy nhiêu) và
+    $0 \le O_s(t) \le P_s$ tại mọi $t$.
+\end{enumerate}
+
+\subsection{Bốn hướng sinh instance}
+
+\paragraph{Hướng 1 — Template cố định.}
+Mã hóa cứng 4 test type từ bài báo gốc; mỗi instance là tổ hợp số copies
+$\langle N_1, N_2, N_3, N_4 \rangle$. Phù hợp để tái lập kết quả bài báo
+gốc, nhưng không đủ đa dạng cho ablation.
+
+\paragraph{Hướng 2 — Parameterized template (đề xuất chính).}
+Mỗi test type được sinh từ tập tham số:
+\begin{itemize}[noitemsep]
+  \item $n_\mathrm{acts}$: số activities/type; $[d_{\min}, d_{\max}]$: phân phối duration.
+  \item $\lambda_\mathrm{lag}$: mật độ lag (xác suất thêm cạnh shortcut).
+  \item $\rho_\mathrm{max}$: tỷ lệ min lags cũng có max lag.
+  \item $\delta_\mathrm{slack}$: $L = \ell_{\min} \cdot (1 + \delta)$,
+    $\delta \in [0.1,\; 3.0]$.
+  \item $\sigma_\mathrm{storage}$: tỷ lệ activities có storage event.
+  \item $[P_{\min}, P_{\max}]$: phân phối storage capacity.
+\end{itemize}
+Instance được ghép từ nhiều copies của một hoặc nhiều test types.
+
+\paragraph{Hướng 3 — ProGen-inspired.}
+Kế thừa 4 tham số của ProGen (NC, RS, RF, OS) và thêm 4 tham số SAMSP:
+\begin{itemize}[noitemsep]
+  \item \textbf{SF} (storage factor): tỷ lệ activities có storage event.
+  \item \textbf{SS} (storage strength): $(P_s - 1) / (P_{s,\max} - 1)$
+    — nghịch với độ chặt storage.
+  \item \textbf{LF} (lag factor): tỷ lệ cạnh có max lag.
+  \item \textbf{LS} (lag slack): $L / \ell_{\min} - 1$.
+\end{itemize}
+Framework này cho phép so sánh với RCPSP literature theo cùng không gian tham số.
+
+\paragraph{Hướng 4 — Hybrid library.}
+Xây thư viện 10--20 test type templates (4 từ paper gốc + phần còn lại
+sinh bằng Hướng 2); mỗi instance chọn ngẫu nhiên subset và số copies.
+Đây là hướng phù hợp nhất cho publication vì vừa đa dạng vừa có cấu trúc.
+
+\subsection{Vấn đề trọng tâm: storage balance}
+
+Sinh $c_{is}$ ngẫu nhiên độc lập sẽ vi phạm global balance hoặc tạo level
+âm. Giải pháp: sinh storage events \emph{theo cặp}.
+
+\begin{verbatim}
+for s in storages:
+    for _ in range(n_cuvettes):
+        # Chọn put_act: activity đặt cuvette vào storage s
+        put = choice([a for a in acts if can_put(a, s)])
+        # Chọn vacate_act: phải đến sau put theo topological order
+        vac = choice([a for a in acts
+                      if topo_rank[a] > topo_rank[put]
+                      and can_vacate(a, s)])
+        c[put][s] += 1    # chiếm tại start của put
+        c[vac][s] -= 1    # trả sau completion của vac
+\end{verbatim}
+
+Sau khi sinh, chạy một greedy schedule và kiểm tra
+$O_s(t) \in [0, P_s]$ tại mọi $t$ (\cref{eq:storage}).
+Nếu vi phạm, hoán đổi một số cặp put/vacate cho đến khi thỏa.
+
+\subsection{Đảm bảo không positive cycle}
+
+Khi thêm max lag $(j, i, -L)$, kiểm tra positive cycle bằng max-plus closure
+trước khi chấp nhận cạnh:
+
+\begin{verbatim}
+def add_max_lag_safe(lags, i, j, ell_min, slack):
+    L   = ell_min * (1 + slack)
+    candidate = (j, i, -L)
+    if not has_positive_cycle(lags + [candidate]):
+        lags.append(candidate)
+    # else: bỏ qua max lag này
+\end{verbatim}
+
+Instance có positive cycle được giữ lại như một case UNSAT để kiểm tra
+bộ phát hiện infeasibility của solver.
+
+\subsection{Điều khiển độ khó}
+
+\begin{table}[htbp]
+\centering
+\caption{Tham số điều khiển độ khó và ảnh hưởng lên solver.}
+\label{tab:difficulty}
+\begin{tabularx}{\textwidth}{@{}p{0.22\textwidth}p{0.09\textwidth}Y@{}}
+\toprule
+\textbf{Tham số} & \textbf{Tăng $\to$} & \textbf{Ảnh hưởng lên solver}\\
+\midrule
+$n_\mathrm{copies}$ & Khó hơn &
+  Horizon tăng; nhiều symmetry cần breaking.\\
+$P_s$ (storage cap) & Dễ hơn &
+  Storage constraints lỏng hơn; ít conflicts hơn.\\
+$\rho_\mathrm{max}$ (tỷ lệ max lag) & Dễ hơn &
+  Windows hẹp hơn; formula nhỏ hơn.\\
+$\delta_\mathrm{slack}$ (lag slack) & Khó hơn &
+  Max lag xa min lag; windows rộng hơn; nhiều SAT calls hơn.\\
+$\lambda_\mathrm{lag}$ (lag density) & Dễ hơn &
+  Closure mạnh hơn; windows hẹp hơn; PB(AMO) lợi hơn.\\
+$\sigma_\mathrm{storage}$ (storage density) & Khó hơn &
+  Nhiều storage PB constraints hơn.\\
+$B_r = 1$ (unary) & Cố định &
+  No-overlap cấu trúc; path cover/PB(AMO) hiệu quả.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ba cấu hình chuẩn:
+
+\begin{table}[htbp]
+\centering
+\caption{Ba preset độ khó cho benchmark SAMSP-Synthetic.}
+\label{tab:presets}
+\begin{tabularx}{\textwidth}{@{}p{0.13\textwidth}ZZZZZZ@{}}
+\toprule
+\textbf{Preset} & $n_\mathrm{copies}$ & $n_\mathrm{types}$
+  & $P_s$ & $\rho_\mathrm{max}$ & $\sigma_\mathrm{storage}$ & $\delta$\\
+\midrule
+Easy   & 1--5   & 1   & 4   & 0.10 & 0.30 & 0.5--2.0\\
+Medium & 5--20  & 1--2 & 2  & 0.30 & 0.50 & 0.2--1.0\\
+Hard   & 20--120 & 2--4 & 1 & 0.50 & 0.60 & 0.1--0.5\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Pipeline sinh instance}
+
+\begin{enumerate}
+  \item Sinh chuỗi backbone (chain) cho mỗi test type;
+    thêm shortcut min lags theo $\lambda_\mathrm{lag}$.
+  \item Thêm max lags an toàn (kiểm positive cycle từng cạnh).
+  \item Assign renewable resources; assign storage events theo cặp.
+  \item Ghép instance từ copies; thêm symmetry edges SB-R và SB-C.
+  \item Max-plus closure toàn cục; tính $LB_0$; chạy greedy $\to$ $\overline{U}$.
+  \item Tính windows; kiểm $\ES_i \le \LS_i$ cho mọi $i$.
+  \item Kiểm storage feasibility trên greedy schedule; fix nếu vi phạm.
+  \item Ghi metadata, seed và SHA-256 checksum.
+\end{enumerate}
+
+\subsection{Kế thừa từ \texttt{RCPSPProblem} hiện tại}
+
+\begin{verbatim}
+class SAMSPProblem(RCPSPProblem):
+    """Mở rộng RCPSPProblem với generalized lags và storage."""
+
+    def __init__(self, *args,
+                 lags=None,            # list of (i, j, ell)
+                 storages=None,        # list of storage names
+                 storage_caps=None,    # list of P_s
+                 storage_deltas=None,  # c[i][s]
+                 test_metadata=None):
+        super().__init__(*args)
+        self._lags           = lags or []
+        self._storages       = storages or []
+        self._storage_caps   = storage_caps or []
+        self._storage_deltas = storage_deltas or []
+        self._test_metadata  = test_metadata or {}
+
+    @classmethod
+    def from_rcpsp(cls, rcpsp) -> 'SAMSPProblem':
+        """Nâng cấp RCPSP thành SAMSP: không storage, không max lag.
+        Dùng làm regression test trên PSPLIB."""
+        lags = [(i, j, rcpsp.durations[i])
+                for i, j in rcpsp.precedence_graph.edges()]
+        return cls(
+            number_of_activities=rcpsp.number_of_activities,
+            number_of_resources=rcpsp.number_of_resources,
+            durations=rcpsp.durations,
+            requests=rcpsp.requests,
+            capacities=rcpsp.capacities,
+            lags=lags,
+            storages=[],
+            storage_caps=[],
+            storage_deltas=[[0]] * rcpsp.number_of_activities,
+        )
+\end{verbatim}
+
+\subsection{Phân tích instance trong bài báo gốc và hệ quả cho generator}
+\label{sec:paper-instance}
+
+\paragraph{Cấu trúc máy (cố định cho mọi instance).}
+Ba renewable resources $\mathcal{R} = \{\text{Shuttle}, \text{Sample Arm}, \text{Reagent Arm}\}$, mỗi tài nguyên
+capacity 1 ($B_r = 1$, unary).
+Bốn storage areas $\mathcal{C} = \{\text{Cold}, \text{Hot-I}, \text{Hot-II}, \text{Observation}\}$,
+capacity $P = \langle 4, 4, 4, 2 \rangle$.
+
+\begin{remark}
+Observation area có capacity $P_s = 2$ thay vì 4 — đây là ràng buộc thắt cổ chai.
+Generator cần phản ánh sự bất đối xứng này thay vì dùng capacity đồng nhất.
+\end{remark}
+
+\paragraph{Bốn test types (Table 1 trong bài báo).}
+
+\begin{table}[htbp]
+\centering
+\caption{Đặc trưng 4 test types trong bài báo gốc. ``Storage acts'': số activities
+  có storage event; ``LB'': cận dưới CPM cho một copy.}
+\label{tab:testtypes}
+\begin{tabularx}{\textwidth}{@{}p{0.09\textwidth}ZZZZZZZZZZ@{}}
+\toprule
+\textbf{Type} & \textbf{Acts} & \textbf{Prec.} & \textbf{LB} &
+  \textbf{Shuttle} & \textbf{S.Arm} & \textbf{R.Arm} &
+  \textbf{Cold} & \textbf{Hot-I} & \textbf{Hot-II} & \textbf{Obs.}\\
+\midrule
+1 &  7 &  8 & 25 & 3 & 1 & 1 & 0 & 1 & 0 & 1\\
+2 & 14 & 17 & 62 & 6 & 5 & 1 & 2 & 0 & 1 & 1\\
+3 &  9 & 11 & 44 & 4 & 1 & 2 & 0 & 1 & 1 & 1\\
+4 &  9 & 10 & 38 & 4 & 1 & 2 & 1 & 0 & 1 & 1\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Quan sát trực tiếp từ Table 1:}
+\begin{itemize}
+  \item Duration: 3--7 time units (shuttle/arm operations); time lag lên đến 30 time
+    units (chemical incubation) — tỷ lệ $\text{lag}/\text{duration} \approx 5$--$10\times$.
+    Generator cần tham số riêng cho lag distribution, không chỉ sample từ duration.
+  \item Mỗi activity chỉ dùng \emph{một} renewable resource (unary, $b_{ir} \in \{0,1\}$).
+    Generator không cần sinh demand phức tạp.
+  \item Storage events: một số activities trong cùng test type không có storage event
+    (diluent addition, reagent addition). Tỷ lệ ``Storage acts / Acts'' = 10/7, 20/14,
+    15/9, 15/9 (lớn hơn 1 vì một activity có thể có 2 storage events: vacate cũ + occupy mới).
+    Generator cần hỗ trợ multi-event per activity.
+  \item Exact storage pairing: bài báo xác nhận ``for each activity that occupies a
+    storage position, there is another activity that vacates that position'' — xác nhận
+    chiến lược sinh theo cặp là đúng theo bài toán thực.
+\end{itemize}
+
+\paragraph{Cấu trúc instance và naming convention.}
+
+Bài báo ký hiệu $I_{[\langle i, j \rangle]}$ với $i$ là test type, $j$ là số copies.
+Instance ``basic'' trong Set~I có $j \in \{5, 10, 20\}$.
+Instance ``complex'' trong Set~II có $j \in \{20, 60, 120\}$ hoặc mix nhiều types.
+
+\begin{table}[htbp]
+\centering
+\caption{Thống kê Set~I (24 instances) từ bài báo. Scaling tuyến tính khi tăng copies.}
+\label{tab:set1stats}
+\begin{tabularx}{\textwidth}{@{}p{0.22\textwidth}ZZZY@{}}
+\toprule
+\textbf{Phạm vi} & \textbf{Acts} & \textbf{Prec. w/o SB} & \textbf{Prec. w SB} & \textbf{Hệ quả}\\
+\midrule
+Single type, 5 copies  & 27--62  & 131--541  & 341--1501  & SAT giải dưới 1 giây (CPsb).\\
+Single type, 10 copies & 52--122 & 261--1081 & 1206--5401 & Thách thức nhẹ.\\
+Single type, 20 copies & 102--242 & 521--2161 & 4511--20401 & Set~I hardest.\\
+Mix 2 types, 5+5       & 62--97  & 336--791  & 866--2131  & Asymmetry phức tạp hơn.\\
+Mix 2 types, 10+10     & 122--192 & 671--1581 & 3146--7836 & Một số timeout SMT.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Key insight: SB làm tăng precedences mạnh nhưng thu hẹp LB rất hiệu quả.}
+
+Bảng Set~I cho thấy symmetry breaking tăng số precedences lên 3--10 lần
+(từ \textasciitilde{}130 lên \textasciitilde{}340 cho Type~1, 5 copies),
+nhưng đồng thời cải thiện $LB$ từ 25 lên 59 cho cùng instance.
+Đây là xác nhận quan trọng: \textbf{SB edges phải được đưa vào closure trước
+khi tính time windows} — không phải thêm vào sau.
+
+Generator cần:
+\begin{enumerate}
+  \item Cài đặt đúng SB-R và SB-C trước closure.
+  \item Báo cáo hai con số: precedences w/o SB và w SB.
+  \item Kiểm tra rằng $LB_\text{w SB} \ge LB_\text{w/o SB}$ (nếu không → SB implementation sai).
+\end{enumerate}
+
+\paragraph{Set~II và giới hạn scalability.}
+
+Set~II (24 instances, $j \in \{20, 60, 120\}$) cho thấy:
+\begin{itemize}
+  \item $I[\langle 3, 60 \rangle]$ và $I[\langle 3, 120 \rangle]$: unknown optimum (timeout với mọi solver).
+  \item $I[\langle 1,10 \rangle, \langle 2,10 \rangle, \langle 3,10 \rangle, \langle 4,10 \rangle]$: unknown (312 activities, 10981 prec. w SB).
+\end{itemize}
+Generator SAMSP-Synthetic-Hard nên nhắm đến khoảng 100--400 activities
+để có instance challenging nhưng không trivially timeout.
+
+\paragraph{Hệ quả cho generator: 5 điều chỉnh so với phiên bản trước.}
+
+\begin{enumerate}
+  \item \textbf{Thêm tham số \texttt{multi\_event}:} cho phép một activity có cả $c_{is} > 0$
+    lẫn $c_{is'} < 0$ (chuyển cuvette từ storage $s'$ sang $s$ trong một bước).
+    Đây là cấu trúc phổ biến trong test types thực (ví dụ: ``Cold → Hot-II'').
+
+  \item \textbf{Bất đối xứng capacity:} mặc định $P_s$ không đồng nhất;
+    ít nhất một storage nên có capacity nhỏ hơn (bottleneck).
+    Đề xuất: \texttt{storage\_caps = [4, 4, 4, 2]} làm default.
+
+  \item \textbf{Lag distribution tách biệt:} tham số \texttt{lag\_range} riêng
+    cho chemical process lags, không phụ thuộc vào \texttt{d\_range}.
+    Ví dụ: \texttt{d\_range = [3, 7]}, \texttt{lag\_range = [10, 30]}.
+
+  \item \textbf{Generator phải tái tạo được Fig.~4:} lịch 2 copies của test type Fig.~3
+    với makespan 17 là ground truth dễ kiểm chứng. Nên thêm vào test suite.
+
+  \item \textbf{Naming convention:} dùng \texttt{I[<type,copies>,...]} giống bài báo
+    để dễ đối chiếu. Ví dụ: \texttt{SAMSP-SYN-1x5-seed42} thay vì tên tùy tiện.
+\end{enumerate}
+
+\paragraph{Benchmark sets đề xuất (cập nhật).}
+
+\begin{table}[htbp]
+\centering
+\caption{Benchmark sets cập nhật sau phân tích bài báo gốc.}
+\label{tab:benchmarks-updated}
+\begin{tabularx}{\textwidth}{@{}p{0.24\textwidth}ZYY@{}}
+\toprule
+\textbf{Set} & \textbf{N} & \textbf{Phạm vi activities} & \textbf{Nguồn}\\
+\midrule
+RCPSP-Regression & 480+480 & 32--62 & PSPLIB $j30$/$j60$.\\
+SAMSP-Original Set~I & 24 & 27--242 & Paper gốc (liên hệ tác giả).\\
+SAMSP-Original Set~II & 24 & 97--1442 & Paper gốc (liên hệ tác giả).\\
+SAMSP-Synthetic-Easy & 100 & 10--50 & Generator, $j=1$--5, 1 type.\\
+SAMSP-Synthetic-Medium & 100 & 50--250 & Generator, $j=5$--20, 1--2 types.\\
+SAMSP-Synthetic-Hard & 50 & 100--400 & Generator, $j=20$--60, 2--4 types.\\
+SAMSP-UNSAT & 20 & any & Generator (positive cycle + storage vi phạm).\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Với SAMSP-Synthetic, công bố: generator source, seeds, cấu hình và SHA-256 checksum.
+
+
+%=============================================================================
+\appendix
+\section{Bảng ký hiệu}
+%=============================================================================
+
+\begin{longtable}{@{}p{0.22\textwidth}p{0.70\textwidth}@{}}
+\toprule \textbf{Ký hiệu} & \textbf{Ý nghĩa}\\ \midrule
+\endfirsthead \toprule \textbf{Ký hiệu} & \textbf{Ý nghĩa}\\ \midrule \endhead
+$\mathcal{V},\, \mathcal{A}$ & Tập mọi hoạt động; tập hoạt động không dummy.\\
+$d_i$ & Thời lượng.\\
+$\ell_{ij},\, \ell^\star_{ij}$ & Lag gốc; lag mạnh nhất từ max-plus closure.\\
+$\ES_i, \LS_i, \EC_i, \LC_i$ & Earliest/latest start/completion.\\
+$W_i = \LS_i - \ES_i + 1$ & Độ rộng start window.\\
+$U_i = W_i + d_i - 1$ & Độ rộng run window.\\
+$q_{i,t}$ & Order literal: $A_i$ đã bắt đầu không muộn hơn $t$.\\
+$\sigma_{i,t} = q_{i,t}\wedge\neg q_{i,t-1}$ & Start literal dẫn xuất.\\
+$u_{i,t}$ & Run literal: $A_i$ đang chạy tại $t$.\\
+$b_{ir},\, B_r$ & Nhu cầu và sức chứa tài nguyên tái tạo.\\
+$c_{is},\, P_s$ & Thay đổi level và sức chứa storage.\\
+$O_s(t)$ & Mức chiếm storage $s$ tại biên $t$.\\
+$D = (\mathcal{A}, F)$ & DAG non-overlap dùng cho PB(AMO).\\
+$I_s^+,\, I_s^-$ & Activities chiếm / trả storage $s$.\\
+\bottomrule
+\end{longtable}
+
+%=============================================================================
+\section{Checklist trước khi báo cáo}
+%=============================================================================
+
+\begin{enumerate}
+  \item Mọi model SAT giải mã được đều qua validator kiểm \eqref{eq:dummy}--\eqref{eq:storage}.
+  \item Optimum khớp baseline trên instance nhỏ và benchmark đã biết.
+  \item Có test riêng cho negative lag, positive-cycle UNSAT, zero-duration dummy.
+  \item Ghi rõ PB encoder cụ thể; không gọi BDD PB thông thường là PB(AMO).
+  \item Tách $\#V_\mathrm{core},\#C_\mathrm{core}$ khỏi $\#V_\mathrm{PB},\#C_\mathrm{PB}$.
+  \item Cùng solver version, seed, timeout và phần cứng cho mọi cấu hình.
+  \item Cung cấp script tái lập kết quả và kiểm tra schedule.
+\end{enumerate}
+
+%=============================================================================
+\begin{thebibliography}{9}
+%=============================================================================
+
+\bibitem{bofill2020rcpsp}
+M.~Bofill, J.~Coll, J.~Suy, and M.~Villaret.
+SMT encodings for resource-constrained project scheduling problems.
+\emph{Comput.\ Ind.\ Eng.}, 149:106777, 2020.
+
+\bibitem{bofill2022samsp}
+M.~Bofill, J.~Coll, G.~Martín, J.~Suy, and M.~Villaret.
+The Sample Analysis Machine Scheduling Problem.
+\emph{Comput.\ Oper.\ Res.}, 142:105730, 2022.
+
+\bibitem{bofill2021pbamo}
+M.~Bofill et al.
+SAT encodings for pseudo-Boolean constraints together with at-most-one constraints.
+\emph{Artif.\ Intell.}, 302:103604, 2021.
+
+\bibitem{truong2025scl}
+H.~X.~Truong, T.~V.~Kieu, and K.~V.~To.
+Sequential counter encoding for staircase at-most-one constraints.
+Manuscript, 2025.
+
+\bibitem{abio2012bdd}
+I.~Abío et al.
+A new look at BDDs for pseudo-Boolean constraints.
+\emph{J.\ Artif.\ Intell.\ Res.}, 45:443--480, 2012.
+
+\bibitem{kolisch1997psplib}
+R.~Kolisch and A.~Sprecher.
+PSPLIB -- A project scheduling problem library.
+\emph{Eur.\ J.\ Oper.\ Res.}, 96(1):205--216, 1997.
+
+\end{thebibliography}
+
+\end{document}

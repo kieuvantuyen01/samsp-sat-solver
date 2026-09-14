@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# LaTeX build artifacts
+*.aux *.log *.out *.toc *.fdb_latexmk *.fls *.synctex.gz
+
+# macOS
+.DS_Store
+
+# Large/scratch files
+tmp/
+https:/
+# old rcpsp/ dir (kept for reference)
+/rcpsp/
+output/
+nhan_xet_mo_hinh_sat_samsp.md
+
+# Reference PDFs (large binary files)
+*.pdf
+
+# Data (too large for git — use git-lfs or external storage)
+# Uncomment below to track data:
+# !data/set_i/
+# !data/set_ii/
+data/
+
+# Sequential Counter paper (unrelated)
+Sequential_Counter_encoding_for_Staircase_At_Most_One_constraints/
