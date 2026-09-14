@@ -865,11 +865,12 @@ Observation area có capacity $P_s = 2$ thay vì 4 — đây là ràng buộc th
 Generator cần phản ánh sự bất đối xứng này thay vì dùng capacity đồng nhất.
 \end{remark}
 
+
 \paragraph{Bốn test types (Table~1 trong bài báo).}
 
 \begin{table}[htbp]
 \centering
-\caption{Đặc trưng 4 test types. Acts = tổng nodes kể cả 2 dummies; real activities = Acts~$-2$.}
+\caption{Đặc trưng 4 test types. LB = cận dưới max-plus cho một copy đơn.}
 \label{tab:testtypes}
 \begin{tabularx}{\textwidth}{@{}p{0.09\textwidth}ZZZZZZZZZZ@{}}
 \toprule
@@ -885,85 +886,54 @@ Generator cần phản ánh sự bất đối xứng này thay vì dùng capacit
 \end{tabularx}
 \end{table}
 
-Mỗi test type mô tả một \emph{protocol cuvette} với critical path xác định qua max-plus closure:
-\begin{itemize}
-  \item \textbf{Type 1} (Hot-I $\to$ Obs): 5 activities; LB = $0 + 23 + 2 = 25$ qua lag trực tiếp fetch$\to$remove.
-  \item \textbf{Type 2} (Cold$\times$2 $\to$ Hot-II $\to$ Obs): 12 activities, 2 cuvettes song song;
-    LB = $0 + 52 + 6 + 2 + 2 = 62$ qua lag C1-fetch$\to$HotII-transfer.
-  \item \textbf{Type 3} (Hot-I $\to$ Hot-II $\to$ Obs): 7 activities;
-    LB = $2 + 34 + 6 + 2 = 44$.
-  \item \textbf{Type 4} (Cold $\to$ Hot-II $\to$ Obs): 7 activities;
-    LB = $2 + 26 + 6 + 2 + 2 = 38$.
-\end{itemize}
+Bốn test types phân biệt theo chuỗi storage zones mà cuvette đi qua:
+Type~1 (Hot-I $\to$ Obs), Type~2 (Cold$\times$2 $\to$ Hot-II $\to$ Obs, hai cuvettes song song),
+Type~3 (Hot-I $\to$ Hot-II $\to$ Obs), Type~4 (Cold $\to$ Hot-II $\to$ Obs).
+Ba đặc điểm chung: (i)~mỗi activity chiếm đúng một renewable resource;
+(ii)~time lag incubation lớn hơn duration thao tác khoảng 10 lần;
+(iii)~transfer cuvette giữa hai storage zones được mô hình hóa trong một activity.
 
-\textbf{Quan sát từ Table~1:}
-\begin{itemize}
-  \item Duration $\in [2,3]$; time lag $\in [3,34]$ (tỷ lệ $\approx 10\times$) —
-    lag distribution tách biệt khỏi duration là bắt buộc.
-  \item Mỗi activity dùng đúng một renewable resource ($b_{ir} \in \{0,1\}$).
-  \item Một activity có thể vừa vacate storage $s'$ vừa occupy $s$ (multi-event);
-    storage events luôn xuất hiện theo cặp (tổng $\sum_i c_{is} = 0$).
-\end{itemize}
-
-\paragraph{Cấu trúc instance và naming convention.}
+\paragraph{Quy mô và cấu trúc instance.}
 
 Bài báo ký hiệu $I_{[\langle i, j \rangle]}$ với $i$ là test type, $j$ là số copies.
-Set~I: $j \in \{5, 10, 20\}$; Set~II: $j \in \{20, 60, 120\}$ và mix nhiều types.
+Set~I ($j \in \{5, 10, 20\}$) và Set~II ($j \in \{20, 60, 120\}$, kể cả mix nhiều types)
+gồm 24 instances mỗi set.
 
 \begin{table}[htbp]
 \centering
-\caption{Thống kê Set~I (24 instances). Precedences tăng tuyến tính theo copies.}
+\caption{Quy mô Set~I theo số copies (số liệu từ bài báo gốc).}
 \label{tab:set1stats}
 \begin{tabularx}{\textwidth}{@{}p{0.22\textwidth}ZZZY@{}}
 \toprule
-\textbf{Phạm vi} & \textbf{Acts} & \textbf{Prec. w/o SB} & \textbf{Prec. w SB} & \textbf{Hệ quả}\\
+\textbf{Phạm vi} & \textbf{Acts} & \textbf{Prec. w/o SB} & \textbf{Prec. w SB} & \textbf{Nhận xét}\\
 \midrule
-Single type, 5 copies  & 27--62  & 131--541  & 341--1501  & SAT giải dưới 1 giây (CPsb).\\
-Single type, 10 copies & 52--122 & 261--1081 & 1206--5401 & Thách thức trung bình.\\
-Single type, 20 copies & 102--242 & 521--2161 & 4511--20401 & Khó nhất Set~I.\\
-Mix 2 types, 5+5       & 62--97  & 336--791  & 866--2131  & Asymmetry tăng độ khó.\\
-Mix 2 types, 10+10     & 122--192 & 671--1581 & 3146--7836 & Một số timeout SMT.\\
+Single type, 5 copies  & 27--62   & 131--541  & 341--1501   & Giải được dưới 1 giây.\\
+Single type, 10 copies & 52--122  & 261--1081 & 1206--5401  & Thách thức trung bình.\\
+Single type, 20 copies & 102--242 & 521--2161 & 4511--20401 & Khó nhất trong Set~I.\\
+Mix 2 types, 5+5       & 62--97   & 336--791  & 866--2131   & Phức tạp hơn do asymmetry.\\
+Mix 2 types, 10+10     & 122--192 & 671--1581 & 3146--7836  & Một số solver timeout.\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\paragraph{SB tăng precedences và cải thiện LB đồng thời.}
+Symmetry breaking làm tăng số precedences 3--10 lần và đồng thời cải thiện $LB$
+(ví dụ: Type~1, 5 copies --- prec tăng từ 131 lên 341, $LB$ tăng từ 25 lên 59).
+SB edges phải được tích hợp vào closure \emph{trước} khi tính time windows.
+Set~II có các instance chưa giải được với mọi solver;
+SAMSP-Synthetic-Hard nhắm đến 100--400 activities để tái tạo vùng khó tương ứng.
 
-Symmetry breaking tăng số precedences lên 3--10 lần nhưng cải thiện $LB$ tương đương:
-ví dụ Type~1, 5 copies: prec tăng từ 131 lên 341, $LB$ tăng từ 25 lên 59.
-\textbf{SB edges phải được tích hợp vào closure trước khi tính time windows},
-không phải thêm vào sau.
+\paragraph{Cài đặt generator.}
 
-Set~II: $I[\langle 3,60 \rangle]$, $I[\langle 3,120 \rangle]$ có optimum chưa biết (timeout mọi solver);
-instance lớn nhất ($n=312$ activities, 10981 prec.\ w SB) cũng chưa giải được.
-SAMSP-Synthetic-Hard nhắm đến 100--400 activities để tái tạo vùng khó này.
-
-\paragraph{Cài đặt generator — kết quả thực tế.}
-
-\begin{enumerate}
-  \item \textbf{Multi-event activity:} \texttt{SAMSPProblem} hỗ trợ
-    $c_{is} > 0$ và $c_{is'} < 0$ đồng thời. Ví dụ: ``Cold $\to$ Hot-II'' có
-    \texttt{storage\_deltas = [-1, 0, +1, 0]}.
-
-  \item \textbf{Bất đối xứng capacity:} \texttt{storage\_caps = [4, 4, 4, 2]};
-    Observation là bottleneck.
-
-  \item \textbf{Lag distribution tách biệt:} \texttt{d\_range = [2, 5]},
-    \texttt{lag\_range = [8, 30]} trong \texttt{GeneratorConfig}.
-
-  \item \textbf{Sửa lỗi dummy activity:} phiên bản gốc đưa cả dummy start/end
-    của từng test type vào global instance, gây ra hai tầng dummies và LB sai.
-    Sửa bằng cách bỏ dummy nội bộ và remap lags: local~0~$\to$~global dummy start,
-    local~$(n{-}1)$~$\to$~global dummy end.
-
-  \item \textbf{Act count khớp Table~1:} 5/12/7/7 real activities,
-    resource profile đúng, LB xác minh qua Floyd-Warshall (Bảng~\ref{tab:generator-vs-paper}).
-\end{enumerate}
+Generator tái tạo đúng cấu trúc 4 test types qua 5 điều chỉnh so với phiên bản ban đầu:
+(1)~hỗ trợ transfer cuvette giữa hai storage zones trong một activity;
+(2)~capacity không đồng nhất giữa các storage areas (Observation = 2 < Cold/Hot = 4);
+(3)~tham số lag incubation độc lập với duration thao tác;
+(4)~sửa lỗi indexing khiến instance ghép nhiều test types bị tính thêm dummies thừa và trả LB sai;
+(5)~số activities khớp chính xác Table~1 (5/12/7/7 real activities per type).
 
 \begin{table}[htbp]
 \centering
-\caption{Generator vs.\ bài báo (Table~2 gốc). Prec = transitive closure;
-  LB w~SB = cận dưới sau khi tích hợp SB edges.}
+\caption{So sánh generator với bài báo (Table~2 gốc).}
 \label{tab:generator-vs-paper}
 \begin{tabularx}{\textwidth}{@{}lZZZZZZ@{}}
 \toprule
@@ -972,228 +942,41 @@ SAMSP-Synthetic-Hard nhắm đến 100--400 activities để tái tạo vùng kh
   \multicolumn{2}{c@{}}{\textbf{LB w SB}}\\
  & Ours & Paper & Ours & Paper & Ours & Paper\\
 \midrule
-$I_{\{1,5\}}$  & \textbf{27}  & 27  &  71 &  131 & 49  & 59\\
-$I_{\{1,10\}}$ & \textbf{52}  & 52  & 226 &  261 & 80  & 100\\
+$I_{\{1,5\}}$  & \textbf{27}  & 27  &  71 &  131 & 49 & 59\\
+$I_{\{1,10\}}$ & \textbf{52}  & 52  & 226 &  261 & 80 & 100\\
 $I_{\{1,20\}}$ & \textbf{102} & 102 & 800 &  521 & 150 & 185\\
-$I_{\{2,5\}}$  & \textbf{62}  & 62  & 115 &  541 & 82  & 128\\
-$I_{\{3,5\}}$  & \textbf{37}  & 37  & 121 &  251 & 60  &  88\\
-$I_{\{4,5\}}$  & \textbf{37}  & 37  &  80 &  206 & 58  &  66\\
+$I_{\{2,5\}}$  & \textbf{62}  & 62  & 115 &  541 & 82 & 128\\
+$I_{\{3,5\}}$  & \textbf{37}  & 37  & 121 &  251 & 60 &  88\\
+$I_{\{4,5\}}$  & \textbf{37}  & 37  &  80 &  206 & 58 &  66\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Act count khớp 100\%. Prec w/o~SB thấp hơn vì paper đếm implied precedences
-qua transitive closure liên copy. LB w~SB thấp hơn vì SB-C dùng
-heuristic $h = \lfloor P_s / c_{is} \rfloor$ — cải thiện bằng cách tính chính xác
-$\pi_t$ từ local closure của từng test type.
+Số activities khớp 100\% với bài báo. LB w~SB thấp hơn do symmetry breaking theo
+capacity storage chưa tái tạo đúng thứ tự cuvette theo thời gian --- đây là hướng cải thiện tiếp theo.
 
 \paragraph{Trạng thái benchmark.}
 
 \begin{table}[htbp]
 \centering
-\caption{Benchmark sets. Tất cả instances có SHA-256 checksum.
-  Repo: \texttt{github.com/kieuvantuyen01/samsp-sat-solver}.}
+\caption{Benchmark sets. Repo: \texttt{github.com/kieuvantuyen01/samsp-sat-solver}.}
 \label{tab:benchmarks-updated}
 \begin{tabularx}{\textwidth}{@{}p{0.26\textwidth}ZYY@{}}
 \toprule
 \textbf{Set} & \textbf{N} & \textbf{Acts} & \textbf{Trạng thái}\\
 \midrule
-SAMSP Set~I  & 24 & 27--242  & \checkmark\ \texttt{data/set\_i/}\\
-SAMSP Set~II & 24 & 97--1442 & \checkmark\ \texttt{data/set\_ii/}\\
-Synthetic-Easy   & 100 & 10--50   & \checkmark\ \texttt{--preset easy}\\
-Synthetic-Medium & 100 & 50--300  & \checkmark\ \texttt{--preset medium}\\
+SAMSP Set~I      & 24  & 27--242   & \checkmark\ \texttt{data/set\_i/}\\
+SAMSP Set~II     & 24  & 97--1442  & \checkmark\ \texttt{data/set\_ii/}\\
+Synthetic-Easy   & 100 & 10--50    & \checkmark\ \texttt{--preset easy}\\
+Synthetic-Medium & 100 & 50--300   & \checkmark\ \texttt{--preset medium}\\
 Synthetic-Hard   &  50 & 200--1600 & \checkmark\ \texttt{--preset hard}\\
-SAMSP-UNSAT  &  20 & 6+       & \checkmark\ \texttt{--unsat}\\
-RCPSP-Regression & 960 & 32--62 & planned (PSPLIB $j30$/$j60$)\\
+SAMSP-UNSAT      &  20 & 6+        & \checkmark\ \texttt{--unsat}\\
+RCPSP-Regression & 960 & 32--62    & planned\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\textbf{CLI}: \texttt{python3 generate\_dataset.py --set-i} (Set~I),
-\texttt{--set-ii} (Set~II), \texttt{--all} (toàn bộ benchmark suite).
 
-\begin{table}[htbp]
-\centering
-\caption{Đặc trưng 4 test types từ bài báo. Acts = tổng nodes (gồm 2 dummies);
-  real activities = Acts~$-2$; LB = cận dưới max-plus cho một copy.}
-\label{tab:testtypes}
-\begin{tabularx}{\textwidth}{@{}p{0.09\textwidth}ZZZZZZZZZZ@{}}
-\toprule
-\textbf{Type} & \textbf{Acts} & \textbf{Prec.} & \textbf{LB} &
-  \textbf{Shuttle} & \textbf{S.Arm} & \textbf{R.Arm} &
-  \textbf{Cold} & \textbf{Hot-I} & \textbf{Hot-II} & \textbf{Obs.}\\
-\midrule
-1 &  7 &  8 & 25 & 3 & 1 & 1 & 0 & 1 & 0 & 1\\
-2 & 14 & 17 & 62 & 6 & 5 & 1 & 2 & 0 & 1 & 1\\
-3 &  9 & 11 & 44 & 4 & 1 & 2 & 0 & 1 & 1 & 1\\
-4 &  9 & 10 & 38 & 4 & 1 & 2 & 1 & 0 & 1 & 1\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{remark}[Thiết kế protocol từng test type]
-Mỗi test type mô tả một \emph{protocol cuvette}: chuỗi thao tác trên một mẫu.
-\begin{itemize}
-  \item \textbf{Type 1} (Hot-I $\to$ Obs): fetch $\to$ aspirate $\to$ transfer $\to$ reagent $\to$ remove.
-    Critical path qua lag trực tiếp fetch$\to$remove = 23 + $d_{\text{remove}}$ = 25.
-  \item \textbf{Type 2} (Cold$\times$2 $\to$ Hot-II $\to$ Obs): 2 cuvettes song song;
-    C2 được dispose sau khi mix vào C1; critical path qua lag C1\_fetch$\to$HotII\_transfer = 52.
-  \item \textbf{Type 3} (Hot-I $\to$ Hot-II $\to$ Obs): 3 storage zones;
-    critical path $0\to1\to2\to6\to7\to\text{end} = 2+34+6+2 = 44$.
-  \item \textbf{Type 4} (Cold $\to$ Hot-II $\to$ Obs): tương tự Type 3 nhưng dùng Cold thay Hot-I;
-    critical path $0\to1\to2\to5\to6\to7\to\text{end} = 2+26+6+2+2 = 38$.
-\end{itemize}
-\end{remark}
-
-\textbf{Quan sát trực tiếp từ Table 1:}
-\begin{itemize}
-  \item Duration: 3--7 time units (shuttle/arm operations); time lag lên đến 30 time
-    units (chemical incubation) — tỷ lệ $\text{lag}/\text{duration} \approx 5$--$10\times$.
-    Generator cần tham số riêng cho lag distribution, không chỉ sample từ duration.
-  \item Mỗi activity chỉ dùng \emph{một} renewable resource (unary, $b_{ir} \in \{0,1\}$).
-    Generator không cần sinh demand phức tạp.
-  \item Storage events: một số activities trong cùng test type không có storage event
-    (diluent addition, reagent addition). Tỷ lệ ``Storage acts / Acts'' = 10/7, 20/14,
-    15/9, 15/9 (lớn hơn 1 vì một activity có thể có 2 storage events: vacate cũ + occupy mới).
-    Generator cần hỗ trợ multi-event per activity.
-  \item Exact storage pairing: bài báo xác nhận ``for each activity that occupies a
-    storage position, there is another activity that vacates that position'' — xác nhận
-    chiến lược sinh theo cặp là đúng theo bài toán thực.
-\end{itemize}
-
-\paragraph{Cấu trúc instance và naming convention.}
-
-Bài báo ký hiệu $I_{[\langle i, j \rangle]}$ với $i$ là test type, $j$ là số copies.
-Instance ``basic'' trong Set~I có $j \in \{5, 10, 20\}$.
-Instance ``complex'' trong Set~II có $j \in \{20, 60, 120\}$ hoặc mix nhiều types.
-
-\begin{table}[htbp]
-\centering
-\caption{Thống kê Set~I (24 instances) từ bài báo. Scaling tuyến tính khi tăng copies.}
-\label{tab:set1stats}
-\begin{tabularx}{\textwidth}{@{}p{0.22\textwidth}ZZZY@{}}
-\toprule
-\textbf{Phạm vi} & \textbf{Acts} & \textbf{Prec. w/o SB} & \textbf{Prec. w SB} & \textbf{Hệ quả}\\
-\midrule
-Single type, 5 copies  & 27--62  & 131--541  & 341--1501  & SAT giải dưới 1 giây (CPsb).\\
-Single type, 10 copies & 52--122 & 261--1081 & 1206--5401 & Thách thức nhẹ.\\
-Single type, 20 copies & 102--242 & 521--2161 & 4511--20401 & Set~I hardest.\\
-Mix 2 types, 5+5       & 62--97  & 336--791  & 866--2131  & Asymmetry phức tạp hơn.\\
-Mix 2 types, 10+10     & 122--192 & 671--1581 & 3146--7836 & Một số timeout SMT.\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\paragraph{Key insight: SB làm tăng precedences mạnh nhưng thu hẹp LB rất hiệu quả.}
-
-Bảng Set~I cho thấy symmetry breaking tăng số precedences lên 3--10 lần
-(từ \textasciitilde{}130 lên \textasciitilde{}340 cho Type~1, 5 copies),
-nhưng đồng thời cải thiện $LB$ từ 25 lên 59 cho cùng instance.
-Đây là xác nhận quan trọng: \textbf{SB edges phải được đưa vào closure trước
-khi tính time windows} — không phải thêm vào sau.
-
-Generator cần:
-\begin{enumerate}
-  \item Cài đặt đúng SB-R và SB-C trước closure.
-  \item Báo cáo hai con số: precedences w/o SB và w SB.
-  \item Kiểm tra rằng $LB_\text{w SB} \ge LB_\text{w/o SB}$ (nếu không → SB implementation sai).
-\end{enumerate}
-
-\paragraph{Set~II và giới hạn scalability.}
-
-Set~II (24 instances, $j \in \{20, 60, 120\}$) cho thấy:
-\begin{itemize}
-  \item $I[\langle 3, 60 \rangle]$ và $I[\langle 3, 120 \rangle]$: unknown optimum (timeout với mọi solver).
-  \item $I[\langle 1,10 \rangle, \langle 2,10 \rangle, \langle 3,10 \rangle, \langle 4,10 \rangle]$: unknown (312 activities, 10981 prec. w SB).
-\end{itemize}
-Generator SAMSP-Synthetic-Hard nên nhắm đến khoảng 100--400 activities
-để có instance challenging nhưng không trivially timeout.
-
-\paragraph{Điều chỉnh implementation — trạng thái hiện tại.}
-
-\begin{enumerate}
-  \item \textbf{[\checkmark] Multi-event activity:} \texttt{SAMSPProblem} hỗ trợ
-    $c_{is} > 0$ và $c_{is'} < 0$ đồng thời (transfer giữa 2 storage trong 1 bước).
-    Ví dụ: act ``Cold $\to$ Hot-II'' có \texttt{storage\_deltas = [-1, 0, +1, 0]}.
-
-  \item \textbf{[\checkmark] Bất đối xứng capacity:} mặc định
-    \texttt{storage\_caps = [4, 4, 4, 2]} — Observation là bottleneck.
-
-  \item \textbf{[\checkmark] Lag distribution tách biệt:} \texttt{GeneratorConfig}
-    có \texttt{d\_range} (2--5) và \texttt{lag\_range} (8--30) độc lập.
-
-  \item \textbf{[\checkmark] Bug fix: dummy activity trong \texttt{from\_paper\_types}:}
-    phiên bản đầu thêm cả dummy start/end của từng test type vào global instance,
-    tạo ra hai lớp dummies chồng nhau và tính LB sai. Đã sửa bằng cách
-    strip dummies và remap lags: local index 0 $\to$ global dummy start,
-    local index $n{-}1$ $\to$ global dummy end.
-
-  \item \textbf{[\checkmark] Test types khớp chính xác Table 1:} act count
-    đã đúng (5/12/7/7 real activities), resource profile đúng, LB xác minh.
-    Xem bảng~\ref{tab:generator-vs-paper} để đối chiếu số liệu.
-\end{enumerate}
-
-\begin{table}[htbp]
-\centering
-\caption{So sánh generator với bài báo (Table 2). Prec = số precedences sau transitive
-  closure. LB w SB = cận dưới sau khi tích hợp SB edges vào closure.}
-\label{tab:generator-vs-paper}
-\begin{tabularx}{\textwidth}{@{}lZZZZZZ@{}}
-\toprule
-\textbf{Instance} & \multicolumn{2}{c}{\textbf{Acts}} &
-  \multicolumn{2}{c}{\textbf{Prec w/o SB}} &
-  \multicolumn{2}{c@{}}{\textbf{LB w SB}}\\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(l){6-7}
- & Ours & Paper & Ours & Paper & Ours & Paper\\
-\midrule
-$I_{\{1,5\}}$  & 27  & 27  &  71 &  131 & 49  & 59\\
-$I_{\{1,10\}}$ & 52  & 52  & 226 &  261 & 80  & 100\\
-$I_{\{1,20\}}$ & 102 & 102 & 800 &  521 & 150 & 185\\
-$I_{\{2,5\}}$  & 62  & 62  & 115 &  541 & 82  & 128\\
-$I_{\{3,5\}}$  & 37  & 37  & 121 &  251 & 60  &  88\\
-$I_{\{4,5\}}$  & 37  & 37  &  80 &  206 & 58  &  66\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\begin{remark}[Lý do Prec và LB chưa khớp]
-Act count khớp 100\%. Prec w/o SB thấp hơn paper ở một số instance vì
-bài báo có thể đếm thêm implied precedences từ global closure qua cả
-transitive paths liên copy. LB w SB thấp hơn vì SB-C edges (storage
-capacity ordering) của ta dùng heuristic $h = \lfloor P_s / c_{is} \rfloor$
-chưa tái tạo chính xác giá trị $\pi_t$ từ protocol thực.
-Đây là hướng cải thiện tiếp theo.
-\end{remark}
-
-\paragraph{Benchmark sets — trạng thái sinh dataset.}
-
-\begin{table}[htbp]
-\centering
-\caption{Benchmark sets và trạng thái hiện tại. \checkmark = đã sinh, source code tại
-  \texttt{generate\_dataset.py}.}
-\label{tab:benchmarks-updated}
-\begin{tabularx}{\textwidth}{@{}p{0.26\textwidth}ZYY@{}}
-\toprule
-\textbf{Set} & \textbf{N} & \textbf{Phạm vi acts} & \textbf{Trạng thái}\\
-\midrule
-SAMSP Set~I (paper-like) & 24 & 27--242 & \checkmark \texttt{data/set\_i/}\\
-SAMSP Set~II (paper-like) & 24 & 97--1442 & \checkmark \texttt{data/set\_ii/}\\
-SAMSP-Synthetic-Easy & 100 & 10--50 & \checkmark \texttt{--preset easy}\\
-SAMSP-Synthetic-Medium & 100 & 50--300 & \checkmark \texttt{--preset medium}\\
-SAMSP-Synthetic-Hard & 50 & 200--1600 & \checkmark \texttt{--preset hard}\\
-SAMSP-UNSAT & 20 & 6+ & \checkmark \texttt{--unsat}\\
-RCPSP-Regression & 480+480 & 32--62 & planned (PSPLIB $j30$/$j60$)\\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Tất cả instances có SHA-256 checksum trong metadata để đảm bảo reproducibility.
-Repo: \url{https://github.com/kieuvantuyen01/samsp-sat-solver}.\\
-\textbf{CLI}: \texttt{python3 generate\_dataset.py --set-i} (Set~I),
-\texttt{--set-ii} (Set~II), \texttt{--all} (toàn bộ benchmark suite).
-
-
-%=============================================================================
 \appendix
 \section{Bảng ký hiệu}
 %=============================================================================
