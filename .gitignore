@@ -28,7 +28,7 @@ nhan_xet_mo_hinh_sat_samsp.md
 # Uncomment below to track data:
 # !data/set_i/
 # !data/set_ii/
-data/
+# data/ tracked below
 
 # Sequential Counter paper (unrelated)
 Sequential_Counter_encoding_for_Staircase_At_Most_One_constraints/
